@@ -6,16 +6,11 @@ import Ornament from "@/components/Ornament/Ornament";
 
 interface AdminLoginGateProps {
   title: string;
-  children: (adminKey: string, logout: () => void) => ReactNode;
+  children: (token: string, logout: () => void) => ReactNode;
 }
 
-/**
- * Membungkus halaman admin (check-in / dashboard) dengan gerbang login sederhana.
- * Admin key dimasukkan manual oleh staff dan diverifikasi ke backend — tidak pernah
- * ditanam di kode/env frontend, dan hanya disimpan di sessionStorage (per-tab, sementara).
- */
 export default function AdminLoginGate({ title, children }: AdminLoginGateProps) {
-  const { adminKey, isAuthenticated, isVerifying, error, login, logout } = useAdminAuth();
+  const { token, isAuthenticated, isVerifying, error, login, logout } = useAdminAuth();
   const [input, setInput] = useState("");
 
   const handleSubmit = async (e: FormEvent) => {
@@ -24,7 +19,7 @@ export default function AdminLoginGate({ title, children }: AdminLoginGateProps)
     await login(input.trim());
   };
 
-  if (!isAuthenticated || !adminKey) {
+  if (!isAuthenticated || !token) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-charcoal px-6">
         <motion.div
@@ -78,7 +73,7 @@ export default function AdminLoginGate({ title, children }: AdminLoginGateProps)
           <FiLogOut size={13} /> Keluar
         </button>
       </div>
-      {children(adminKey, logout)}
+      {children(token, logout)}
     </div>
   );
 }

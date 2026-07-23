@@ -91,7 +91,7 @@ function ResultCard({ result, onDismiss }: { result: CheckinResult; onDismiss: (
   );
 }
 
-function CheckinPanel({ adminKey }: { adminKey: string }) {
+function CheckinPanel({ token }: { token: string }) {
   const [isScanning, setIsScanning] = useState(false);
   const [staffName, setStaffName] = useState(() => sessionStorage.getItem("wedding_staff_name") || "");
   const [manualCode, setManualCode] = useState("");
@@ -111,7 +111,7 @@ function CheckinPanel({ adminKey }: { adminKey: string }) {
     lockRef.current = true;
     setIsProcessing(true);
     try {
-      const res = await adminCheckin({ ...payload, staffName: staffName || "Unknown" }, adminKey);
+      const res = await adminCheckin({ ...payload, staffName: staffName || "Unknown" }, token);
       setResult(res);
       await stopScanning();
     } catch {
@@ -255,7 +255,7 @@ function CheckinPanel({ adminKey }: { adminKey: string }) {
 export default function AdminCheckin() {
   return (
     <AdminLoginGate title="Wedding Check-In">
-      {(adminKey) => <CheckinPanel adminKey={adminKey} />}
+      {(token) => <CheckinPanel token={token} />}
     </AdminLoginGate>
   );
 }

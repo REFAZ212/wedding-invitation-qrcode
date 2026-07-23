@@ -1,8 +1,8 @@
-# 🔐 Wedding Invitation Backend — Secure Invite & QR Check-In API
+# Wedding Invitation Backend — SQLite + JWT Auth
 
-Backend Express untuk sistem kode undangan aman dan check-in QR one-time-use. Menggunakan **lowdb** (database JSON file, tanpa native module) agar mudah dijalankan di semua OS termasuk Windows tanpa perlu meng-compile dependency native.
+Backend Express untuk sistem kode undangan aman dan check-in QR one-time-use. Menggunakan **SQLite** via `better-sqlite3` untuk performa tinggi dan mendukung 1000+ undangan dengan indexed queries.
 
-## 🚀 Menjalankan
+## Setup
 
 ```bash
 cd server
@@ -10,81 +10,89 @@ npm install
 cp .env.example .env
 ```
 
-Buka `.env` dan **wajib ganti** `TOKEN_SECRET` dan `ADMIN_KEY` dengan string acak & rahasia (jangan pakai nilai contoh saat produksi).
+Buka `.env` dan **wajib ganti** `JWT_SECRET`, `TOKEN_SECRET`, dan `ADMIN_KEY` dengan nilai rahasia unik.
 
-Buat beberapa contoh undangan untuk testing:
+Buat contoh undangan untuk testing:
 
 ```bash
-npm run seed
+npm run seed         # 4 undangan contoh
+npm run seed:bulk    # 100+ undangan massal
 ```
 
 Jalankan server:
 
 ```bash
-npm run dev     # mode watch, auto-restart saat file berubah
-# atau
-npm start
+npm run dev     # mode watch (Node 18+)
+npm start       # production
 ```
 
-Server berjalan di `http://localhost:4000` (bisa diubah lewat `PORT` di `.env`).
+Server berjalan di `http://localhost:4000`.
 
-Frontend (folder induk project ini) perlu tahu alamat backend ini lewat `VITE_API_BASE_URL` di file `.env` frontend (lihat `.env.example` di root project).
-
-## 📡 API Endpoints
+## API Endpoints
 
 | Method | Endpoint | Akses | Deskripsi |
 |---|---|---|---|
-| GET | `/api/health` | Publik | Cek server hidup |
-| GET | `/api/invitation/:code` | Publik (rate-limited) | Ambil data tamu untuk ditampilkan di halaman undangan |
-| POST | `/api/invitation/generate` | Admin | Buat undangan baru untuk seorang tamu |
-| GET | `/api/invitation` | Admin | Daftar seluruh undangan |
-| POST | `/api/checkin` | Admin | Validasi & proses check-in (via QR token atau kode manual) |
-| GET | `/api/dashboard/statistics` | Admin | Statistik ringkasan kehadiran |
+| GET | `/api/health` | Publik | Status server |
+| GET | `/api/invitation/:code` | Publik (rate-limited) | Lookup data tamu untuk halaman undangan |
+| POST | `/api/invitation/generate` | Admin | Buat undangan baru |
+| POST | `/api/invitation/generate-bulk` | Admin | Buat undangan massal (max 500/batch) |
+| GET | `/api/invitation?page=&limit=&search=` | Admin | Daftar undangan dengan pagination & search |
+| POST | `/api/checkin` | Admin | Validasi & proses check-in (QR token atau kode manual) |
+| GET | `/api/dashboard/statistics` | Admin | Statistik ringkasan |
 | GET | `/api/dashboard/history` | Admin | Riwayat scan (audit log) |
+| POST | `/api/admin/login` | Publik (rate-limited) | Login admin, dapatkan JWT token |
+| POST | `/api/rsvp` | Publik (rate-limited) | Submit RSVP |
+| GET | `/api/rsvp` | Admin | List semua RSVP |
+| POST | `/api/wishes` | Publik (rate-limited) | Submit ucapan/doa |
+| GET | `/api/wishes?page=&limit=` | Publik | List ucapan (terbaru di atas) |
+| GET | `/api/wishes/admin` | Admin | List semua ucapan |
 
-Endpoint **Admin** mewajibkan header `x-admin-key: <ADMIN_KEY dari .env>`.
+## Authentication
 
-### Contoh: membuat undangan baru
+**Dual-mode** — admin bisa menggunakan salah satu:
 
-```bash
-curl -X POST http://localhost:4000/api/invitation/generate \
-  -H "Content-Type: application/json" \
-  -H "x-admin-key: <ADMIN_KEY_ANDA>" \
-  -d '{"guestName": "Budi Santoso", "maxGuests": 2}'
-```
+1. **JWT Token** (recommended): Login via `POST /api/admin/login` dengan body `{ adminKey }`, dapatkan token. Gunakan `Authorization: Bearer <token>` di header request.
+2. **Direct key**: Kirim header `x-admin-key: <ADMIN_KEY>` langsung (backward-compatible).
 
-Response berisi `invitationCode` (untuk link `/i/KODE`) dan `qrToken` (untuk QR tiket masuk).
+JWT token expire setelah `JWT_EXPIRES_IN` (default 8 jam).
 
-## 🔒 Model Keamanan
+## Database
 
-- **Kode undangan** (`invitationCode`): 8 karakter acak dari alphabet 32 simbol (tanpa karakter ambigu 0/O/1/I) → ±1 triliun kemungkinan. Dipakai sebagai identifier di URL (`/i/KODE`) — cukup acak untuk tidak bisa ditebak, namun tidak mengekspos nama tamu di URL.
-- **QR token** (`qrToken`): payload id internal yang **ditandatangani HMAC-SHA256** dengan `TOKEN_SECRET`. Tidak bisa dipalsukan tanpa mengetahui secret ini. Ini yang di-encode ke QR "tiket masuk" — terpisah dari kode undangan yang dibagikan lewat link.
-- **One-time check-in**: status `checkedIn` disimpan di server dan diperiksa atomically sebelum ditandai — percobaan scan kedua kali akan selalu mendapat `already_used`, tidak peduli dari device/token mana pun.
-- **Rate limiting**: endpoint lookup publik dan check-in dibatasi per-IP untuk mencegah brute-force/enumerasi.
-- **Audit log**: setiap percobaan scan (berhasil, duplikat, atau tidak valid) dicatat dengan waktu, metode, dan siapa yang melakukan scan.
-- **Tidak ada data sensitif di frontend**: keputusan valid/tidak valid/sudah dipakai 100% dihitung di backend. Frontend hanya menampilkan hasil yang dikembalikan server.
-- **Admin key**: pengamanan minimal berbasis shared-secret, cocok untuk skala event pernikahan (segelintir staff, durasi singkat). *Untuk kebutuhan lebih besar/berulang, ganti dengan sistem login staff sungguhan (JWT per-user + role-based access + hashed password).*
+SQLite via `better-sqlite3` dengan **WAL mode** (Write-Ahead Logging) untuk performa concurrent read/write yang optimal.
 
-## 🗄️ Struktur Data
+- Data: `server/data/wedding.db` (auto-created saat pertama kali init)
+- Backup: `npm run backup` → `server/data/backups/` (keep last 7)
+- File `.gitignore` sudah mengabaikan file `.db`, `.db-wal`, `.db-shm`
 
-Disimpan di `server/data/db.json` (dibuat otomatis saat pertama kali `initDb()` dipanggil):
+### Schema
 
-```
-invitations: [
-  {
-    id, guestName, invitationCode, maxGuests,
-    checkedIn, checkedInAt, checkedInBy, scanCount,
-    createdAt, updatedAt
-  }
-]
-auditLogs: [
-  { id, timestamp, action, scanMethod, scannedBy, invitationCode }
-]
-```
+| Tabel | Fungsi |
+|---|---|
+| `invitations` | Data tamu, kode undangan, status check-in |
+| `audit_logs` | Log setiap percobaan scan (berhasil, duplikat, invalid) |
+| `rsvps` | Konfirmasi kehadiran dari tamu |
+| `wishes` | Ucapan/doa dari tamu |
 
-## ☁️ Catatan Deployment
+### Performance
 
-- File `data/db.json` butuh **disk yang persisten**. Cocok untuk hosting seperti Railway, Render, Fly.io, atau VPS biasa. **Tidak cocok** untuk platform serverless stateless (mis. Vercel Functions) tanpa volume storage terpisah, karena filesystem-nya akan direset setiap invocation.
-- Untuk beban tamu sangat besar (ribuan undangan, banyak staff check-in bersamaan), pertimbangkan migrasi dari lowdb ke database sungguhan (PostgreSQL/MySQL) — struktur fungsi di `src/db.js` sudah dipisah rapi agar mudah diganti implementasinya tanpa menyentuh route.
-- Set `CORS_ORIGIN` di `.env` sesuai domain frontend produksi Anda.
-- Jalankan di belakang HTTPS (reverse proxy/hosting yang menyediakan TLS) — jangan expose admin key lewat koneksi HTTP biasa.
+- Indexed queries: `invitation_code`, `checked_in`, `created_at` (wishes)
+- Check-in diproses dalam **satu transaksi SQLite** (lookup + update + audit log atomik)
+- Statistik dihitung via **SQL aggregation** (`SUM`, `COUNT`), bukan JavaScript filter
+- Audit log auto-pruned ke 5000 entri terakhir
+
+## Rate Limiting
+
+| Endpoint | Batas |
+|---|---|
+| Check-in | 120/menit/IP |
+| Public lookup | 60/menit/IP |
+| Admin login | 10/15 menit/IP |
+| Public writes (RSVP, wishes) | 10/menit/IP |
+
+## Deployment
+
+**Butuh disk persisten** — tidak cocok untuk serverless (Vercel Functions). Cocok untuk:
+- Railway, Render, Fly.io, VPS, atau hosting Node.js lainnya
+- Jalankan `npm run backup` secara berkala atau set cron backup
+- Set `CORS_ORIGIN` sesuai domain frontend produksi
+- Jalankan di belakang HTTPS (reverse proxy / hosting dengan TLS)

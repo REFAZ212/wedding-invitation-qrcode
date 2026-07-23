@@ -1,19 +1,22 @@
 {
   "name": "wedding-invitation-server",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "seed:bulk": "node scripts/seed.js --bulk 100",
+    "backup": "node scripts/backup.js"
   },
   "dependencies": {
+    "better-sqlite3": "^11.7.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "express-rate-limit": "^7.4.1",
-    "lowdb": "^7.0.1",
+    "jsonwebtoken": "^9.0.2",
     "nanoid": "^5.0.9"
   }
 }

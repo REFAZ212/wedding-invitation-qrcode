@@ -1,26 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiSend, FiHeart } from "react-icons/fi";
 import type { Wish } from "@/types";
 import { useToast } from "@/hooks/useToast";
-
-const INITIAL_WISHES: Wish[] = [
-  {
-    id: "w1",
-    name: "Sarah & Kevin",
-    message: "Selamat menempuh hidup baru! Semoga menjadi keluarga yang sakinah, mawaddah, warahmah.",
-    attendance: "attending",
-    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-  },
-  {
-    id: "w2",
-    name: "Budi Santoso",
-    message: "Bahagia sekali melihat kalian akhirnya menikah. Selamat menempuh hidup baru!",
-    attendance: "attending",
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-  },
-];
+import { submitWish, fetchWishes, ApiError } from "@/services/api";
 
 interface WishFormValues {
   name: string;
@@ -36,22 +20,52 @@ function relativeTime(iso: string): string {
 }
 
 export default function Wishes() {
-  const [wishes, setWishes] = useState<Wish[]>(INITIAL_WISHES);
+  const [wishes, setWishes] = useState<Wish[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm<WishFormValues>();
   const { showToast } = useToast();
 
+  useEffect(() => {
+    loadWishes();
+  }, []);
+
+  const loadWishes = async () => {
+    try {
+      const result = await fetchWishes(1, 50);
+      setWishes(
+        result.wishes.map((w) => ({
+          id: w.id,
+          name: w.name,
+          message: w.message,
+          attendance: w.attendance as Wish["attendance"],
+          createdAt: w.createdAt,
+        }))
+      );
+    } catch {
+      setWishes([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const onSubmit = async (data: WishFormValues) => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const newWish: Wish = {
-      id: `w-${Date.now()}`,
-      name: data.name,
-      message: data.message,
-      attendance: "pending",
-      createdAt: new Date().toISOString(),
-    };
-    setWishes((prev) => [newWish, ...prev]);
-    reset();
-    showToast("Ucapan Anda berhasil dikirim.");
+    try {
+      const result = await submitWish({ name: data.name, message: data.message });
+      const newWish: Wish = {
+        id: result.id,
+        name: result.name,
+        message: result.message,
+        attendance: result.attendance as Wish["attendance"],
+        createdAt: result.createdAt,
+      };
+      setWishes((prev) => [newWish, ...prev]);
+      reset();
+      showToast("Ucapan Anda berhasil dikirim.");
+    } catch (err) {
+      const msg =
+        err instanceof ApiError ? err.message : "Gagal mengirim ucapan. Coba lagi nanti.";
+      showToast(msg);
+    }
   };
 
   return (
@@ -92,25 +106,34 @@ export default function Wishes() {
         </form>
 
         <div className="flex flex-col gap-4 max-h-[420px] overflow-y-auto pr-1">
-          <AnimatePresence initial={false}>
-            {wishes.map((wish) => (
-              <motion.div
-                key={wish.id}
-                initial={{ opacity: 0, y: -12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="rounded-2xl bg-ivory/70 dark:bg-night-soft/70 border border-gold/10 p-4 shadow-soft"
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <p className="font-medium text-sm text-charcoal dark:text-ivory flex items-center gap-1.5">
-                    <FiHeart size={12} className="text-gold" /> {wish.name}
-                  </p>
-                  <span className="text-[11px] text-charcoal/40 dark:text-ivory/40">{relativeTime(wish.createdAt)}</span>
-                </div>
-                <p className="text-sm text-charcoal/70 dark:text-ivory/70 leading-relaxed">{wish.message}</p>
-              </motion.div>
-            ))}
-          </AnimatePresence>
+          {isLoading ? (
+            <p className="text-center text-sm text-charcoal/40 dark:text-ivory/40 py-8">Memuat ucapan...</p>
+          ) : (
+            <AnimatePresence initial={false}>
+              {wishes.map((wish) => (
+                <motion.div
+                  key={wish.id}
+                  initial={{ opacity: 0, y: -12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="rounded-2xl bg-ivory/70 dark:bg-night-soft/70 border border-gold/10 p-4 shadow-soft"
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="font-medium text-sm text-charcoal dark:text-ivory flex items-center gap-1.5">
+                      <FiHeart size={12} className="text-gold" /> {wish.name}
+                    </p>
+                    <span className="text-[11px] text-charcoal/40 dark:text-ivory/40">{relativeTime(wish.createdAt)}</span>
+                  </div>
+                  <p className="text-sm text-charcoal/70 dark:text-ivory/70 leading-relaxed">{wish.message}</p>
+                </motion.div>
+              ))}
+              {wishes.length === 0 && (
+                <p className="text-center text-sm text-charcoal/40 dark:text-ivory/40 py-8">
+                  Belum ada ucapan. Jadilah yang pertama!
+                </p>
+              )}
+            </AnimatePresence>
+          )}
         </div>
       </div>
     </section>

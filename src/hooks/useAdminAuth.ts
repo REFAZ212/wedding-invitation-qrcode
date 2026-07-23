@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { verifyAdminKey, ApiError } from "@/services/api";
+import { adminLogin, ApiError } from "@/services/api";
 
-const STORAGE_KEY = "wedding_admin_key";
+const TOKEN_KEY = "wedding_admin_token";
 
 interface UseAdminAuthResult {
-  adminKey: string | null;
+  token: string | null;
   isAuthenticated: boolean;
   isVerifying: boolean;
   error: string | null;
@@ -12,13 +12,8 @@ interface UseAdminAuthResult {
   logout: () => void;
 }
 
-/**
- * Mengelola sesi admin/staff check-in.
- * Admin key TIDAK di-hardcode di source/env frontend — staff memasukkannya secara
- * manual saat login, lalu disimpan hanya di sessionStorage (hilang saat tab ditutup).
- */
 export function useAdminAuth(): UseAdminAuthResult {
-  const [adminKey, setAdminKey] = useState<string | null>(() => sessionStorage.getItem(STORAGE_KEY));
+  const [token, setToken] = useState<string | null>(() => sessionStorage.getItem(TOKEN_KEY));
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,14 +21,15 @@ export function useAdminAuth(): UseAdminAuthResult {
     setIsVerifying(true);
     setError(null);
     try {
-      await verifyAdminKey(key);
-      sessionStorage.setItem(STORAGE_KEY, key);
-      setAdminKey(key);
+      const result = await adminLogin(key);
+      sessionStorage.setItem(TOKEN_KEY, result.token);
+      setToken(result.token);
       return true;
     } catch (err) {
-      const message = err instanceof ApiError && err.status === 401
-        ? "Admin key tidak valid."
-        : "Tidak dapat terhubung ke server.";
+      const message =
+        err instanceof ApiError && err.status === 401
+          ? "Admin key tidak valid."
+          : "Tidak dapat terhubung ke server.";
       setError(message);
       return false;
     } finally {
@@ -42,13 +38,13 @@ export function useAdminAuth(): UseAdminAuthResult {
   }, []);
 
   const logout = useCallback(() => {
-    sessionStorage.removeItem(STORAGE_KEY);
-    setAdminKey(null);
+    sessionStorage.removeItem(TOKEN_KEY);
+    setToken(null);
   }, []);
 
   useEffect(() => {
-    if (adminKey) setError(null);
-  }, [adminKey]);
+    if (token) setError(null);
+  }, [token]);
 
-  return { adminKey, isAuthenticated: !!adminKey, isVerifying, error, login, logout };
+  return { token, isAuthenticated: !!token, isVerifying, error, login, logout };
 }

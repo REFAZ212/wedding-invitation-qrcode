@@ -5,27 +5,23 @@ import {
   FiUsers,
   FiCalendar,
   FiImage,
-  FiGift,
   FiCheckSquare,
   FiMessageCircle,
-  FiMoon,
-  FiSun,
+  FiGift,
 } from "react-icons/fi";
-import { useTheme } from "@/hooks/useTheme";
 
 const NAV_ITEMS = [
   { id: "home", label: "Home", icon: FiHome },
   { id: "couple", label: "Couple", icon: FiUsers },
   { id: "event", label: "Event", icon: FiCalendar },
   { id: "gallery", label: "Gallery", icon: FiImage },
-  { id: "gift", label: "Gift", icon: FiGift },
   { id: "rsvp", label: "RSVP", icon: FiCheckSquare },
   { id: "wishes", label: "Wishes", icon: FiMessageCircle },
+  { id: "gift", label: "Gift", icon: FiGift },
 ];
 
 export default function Navigation() {
   const [active, setActive] = useState("home");
-  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     const sections = NAV_ITEMS.map((item) => document.getElementById(item.id)).filter(
@@ -52,8 +48,8 @@ export default function Navigation() {
   return (
     <>
       {/* Desktop sticky top nav */}
-      <nav className="hidden md:flex fixed top-0 left-0 right-0 z-[70] items-center justify-between px-10 py-4 bg-ivory/80 dark:bg-night/80 backdrop-blur-md border-b border-gold/15">
-        <span className="font-script text-2xl text-gold-dark dark:text-gold-light">A &amp; B</span>
+      <nav className="hidden md:flex fixed top-0 left-0 right-0 z-[70] items-center px-10 py-4 bg-night/80 backdrop-blur-md border-b border-gold/15">
+        <span className="font-script text-2xl text-gold-light mr-auto">A &amp; B</span>
         <ul className="flex items-center gap-8">
           {NAV_ITEMS.map((item) => (
             <li key={item.id}>
@@ -62,8 +58,8 @@ export default function Navigation() {
                 onClick={() => scrollTo(item.id)}
                 className={`text-sm tracking-wide uppercase transition-colors ${
                   active === item.id
-                    ? "text-gold-dark dark:text-gold-light font-medium"
-                    : "text-charcoal/60 dark:text-ivory/60 hover:text-gold-dark dark:hover:text-gold-light"
+                    ? "text-gold-light font-medium"
+                    : "text-ivory/60 hover:text-gold-light"
                 }`}
                 aria-current={active === item.id ? "page" : undefined}
               >
@@ -72,14 +68,6 @@ export default function Navigation() {
             </li>
           ))}
         </ul>
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-gold-dark dark:text-gold-light border border-gold/30"
-          aria-label="Ganti tema gelap/terang"
-        >
-          {theme === "light" ? <FiMoon size={15} /> : <FiSun size={15} />}
-        </button>
       </nav>
 
       {/* Mobile floating bottom nav */}
@@ -87,7 +75,7 @@ export default function Navigation() {
         className="md:hidden fixed bottom-3 left-1/2 -translate-x-1/2 z-[70] w-[94%] max-w-md"
         aria-label="Navigasi utama"
       >
-        <ul className="flex items-center justify-between rounded-full bg-ivory/95 dark:bg-night-soft/95 backdrop-blur-md shadow-soft px-2 py-2 border border-gold/15">
+        <ul className="flex items-center justify-between rounded-full bg-night-soft/95 backdrop-blur-md shadow-soft px-2 py-2 border border-gold/15">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = active === item.id;
@@ -109,11 +97,11 @@ export default function Navigation() {
                   )}
                   <Icon
                     size={17}
-                    className={isActive ? "text-gold-dark dark:text-gold-light" : "text-charcoal/50 dark:text-ivory/50"}
+                    className={isActive ? "text-gold-light" : "text-ivory/50"}
                   />
                   <span
                     className={`text-[9px] leading-none ${
-                      isActive ? "text-gold-dark dark:text-gold-light font-medium" : "text-charcoal/40 dark:text-ivory/40"
+                      isActive ? "text-gold-light font-medium" : "text-ivory/40"
                     }`}
                   >
                     {item.label}

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import { FiUsers, FiSend, FiCheckCircle, FiClock, FiPercent, FiCalendar, FiPlus, FiCopy, FiCheck } from "react-icons/fi";
+import { FiUsers, FiSend, FiCheckCircle, FiClock, FiPercent, FiCalendar, FiPlus, FiCopy, FiCheck, FiDownload } from "react-icons/fi";
 import { QRCodeSVG } from "qrcode.react";
+import * as XLSX from "xlsx";
 import AdminLoginGate from "@/components/Admin/AdminLoginGate";
 import {
   adminGetStatistics,
@@ -46,10 +47,10 @@ function StatCard({
 }
 
 function GenerateInvitationForm({
-  adminKey,
+  token,
   onGenerated,
 }: {
-  adminKey: string;
+  token: string;
   onGenerated: (inv: GeneratedInvitation) => void;
 }) {
   const [guestName, setGuestName] = useState("");
@@ -62,13 +63,13 @@ function GenerateInvitationForm({
     if (!guestName.trim()) return;
     setIsSubmitting(true);
     try {
-      const invitation = await adminGenerateInvitation({ guestName: guestName.trim(), maxGuests }, adminKey);
+      const invitation = await adminGenerateInvitation({ guestName: guestName.trim(), maxGuests }, token);
       setLastGenerated(invitation);
       onGenerated(invitation);
       setGuestName("");
       setMaxGuests(2);
     } catch {
-      /* dibiarkan — pesan error umum bisa ditambahkan bila diperlukan */
+      /* dibiarkan */
     } finally {
       setIsSubmitting(false);
     }
@@ -144,10 +145,31 @@ function GenerateInvitationForm({
   );
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    const ok = await copyToClipboard(text);
+    setCopied(ok);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      title="Salin kode"
+      className="inline-flex items-center gap-1 text-charcoal/50 dark:text-ivory/50 hover:text-gold-dark dark:hover:text-gold-light transition-colors"
+    >
+      {copied ? <FiCheck size={13} className="text-sage" /> : <FiCopy size={13} />}
+    </button>
+  );
+}
+
 function InvitationsTable({ invitations }: { invitations: InvitationRecord[] }) {
   return (
     <div className="rounded-2xl bg-ivory dark:bg-night-soft border border-gold/15 shadow-soft overflow-x-auto">
-      <table className="w-full text-sm min-w-[560px]">
+      <table className="w-full text-sm min-w-[600px]">
         <thead>
           <tr className="text-left text-xs uppercase tracking-wide text-charcoal/50 dark:text-ivory/50 border-b border-gold/15">
             <th className="px-4 py-3">Nama Tamu</th>
@@ -161,8 +183,9 @@ function InvitationsTable({ invitations }: { invitations: InvitationRecord[] }) 
           {invitations.map((inv) => (
             <tr key={inv.id} className="border-b border-gold/10 last:border-0">
               <td className="px-4 py-3 text-charcoal dark:text-ivory">{inv.guestName}</td>
-              <td className="px-4 py-3 font-mono text-xs tracking-wider text-charcoal/70 dark:text-ivory/70">
+              <td className="px-4 py-3 font-mono text-xs tracking-wider text-charcoal/70 dark:text-ivory/70 flex items-center gap-2">
                 {inv.invitationCode}
+                <CopyButton text={inv.invitationCode} />
               </td>
               <td className="px-4 py-3 text-charcoal/70 dark:text-ivory/70">{inv.maxGuests}</td>
               <td className="px-4 py-3">
@@ -238,27 +261,80 @@ function HistoryTable({ logs }: { logs: AuditLogEntry[] }) {
   );
 }
 
-function DashboardPanel({ adminKey }: { adminKey: string }) {
+function DashboardPanel({ token }: { token: string }) {
   const [stats, setStats] = useState<DashboardStatistics | null>(null);
   const [history, setHistory] = useState<AuditLogEntry[]>([]);
   const [invitations, setInvitations] = useState<InvitationRecord[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
 
   const refreshAll = useCallback(async () => {
     const [statsRes, historyRes, invitationsRes] = await Promise.allSettled([
-      adminGetStatistics(adminKey),
-      adminGetHistory(adminKey, 30),
-      adminListInvitations(adminKey),
+      adminGetStatistics(token),
+      adminGetHistory(token, 30),
+      adminListInvitations(token),
     ]);
     if (statsRes.status === "fulfilled") setStats(statsRes.value);
     if (historyRes.status === "fulfilled") setHistory(historyRes.value.logs);
     if (invitationsRes.status === "fulfilled") setInvitations(invitationsRes.value.invitations);
-  }, [adminKey]);
+  }, [token]);
 
   useEffect(() => {
     refreshAll();
     const interval = setInterval(refreshAll, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [refreshAll]);
+
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      const allInvitations: InvitationRecord[] = [];
+      let page = 1;
+      let hasMore = true;
+      while (hasMore) {
+        const res = await adminListInvitations(token, page, 200);
+        allInvitations.push(...res.invitations);
+        hasMore = page < res.totalPages;
+        page++;
+      }
+
+      const wsData = [
+        ["No", "Nama Tamu", "Kode Undangan", "Maks Tamu", "Status", "Check-in Oleh", "Waktu Check-in", "Waktu Dibuat"],
+        ...allInvitations.map((inv, i) => [
+          i + 1,
+          inv.guestName,
+          inv.invitationCode,
+          inv.maxGuests,
+          inv.checkedIn ? "Hadir" : "Belum Hadir",
+          inv.checkedInBy || "—",
+          inv.checkedInAt ? new Date(inv.checkedInAt).toLocaleString("id-ID") : "—",
+          new Date(inv.createdAt).toLocaleString("id-ID"),
+        ]),
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      ws["!cols"] = [
+        { wch: 5 },
+        { wch: 30 },
+        { wch: 15 },
+        { wch: 10 },
+        { wch: 12 },
+        { wch: 15 },
+        { wch: 22 },
+        { wch: 22 },
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Data Undangan");
+
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      XLSX.writeFile(wb, `undangan-wedding-${dateStr}.xlsx`);
+    } catch {
+      /* error export */
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const pieData = stats
     ? [
@@ -306,10 +382,21 @@ function DashboardPanel({ adminKey }: { adminKey: string }) {
         </div>
       )}
 
-      <GenerateInvitationForm adminKey={adminKey} onGenerated={() => refreshAll()} />
+      <GenerateInvitationForm token={token} onGenerated={() => refreshAll()} />
 
       <div>
-        <h3 className="font-display text-lg text-charcoal dark:text-ivory mb-3">Daftar Undangan</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-display text-lg text-charcoal dark:text-ivory">Daftar Undangan</h3>
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={isExporting || invitations.length === 0}
+            className="flex items-center gap-2 rounded-xl border border-gold/25 bg-transparent text-charcoal dark:text-ivory text-sm font-medium px-4 py-2 hover:bg-gold/10 disabled:opacity-50 transition-colors"
+          >
+            <FiDownload size={14} />
+            {isExporting ? "Mengekspor..." : "Download Excel"}
+          </button>
+        </div>
         <InvitationsTable invitations={invitations} />
       </div>
 
@@ -324,7 +411,7 @@ function DashboardPanel({ adminKey }: { adminKey: string }) {
 export default function AdminDashboard() {
   return (
     <AdminLoginGate title="Wedding Dashboard">
-      {(adminKey) => <DashboardPanel adminKey={adminKey} />}
+      {(token) => <DashboardPanel token={token} />}
     </AdminLoginGate>
   );
 }

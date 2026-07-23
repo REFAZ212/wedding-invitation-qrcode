@@ -1,18 +1,27 @@
 import { Router } from "express";
 import { getStatistics, listAuditLogs } from "../db.js";
-import { requireAdminKey } from "../middleware/adminAuth.js";
+import { requireAdminAuth } from "../middleware/adminAuth.js";
+import { logger } from "../logger.js";
 
 export const dashboardRouter = Router();
 
-/** GET /api/dashboard/statistics — ringkasan angka untuk kartu statistik dashboard. */
-dashboardRouter.get("/statistics", requireAdminKey, async (_req, res) => {
-  const stats = await getStatistics();
-  res.json(stats);
+dashboardRouter.get("/statistics", requireAdminAuth, async (_req, res) => {
+  try {
+    const stats = getStatistics();
+    res.json(stats);
+  } catch (err) {
+    logger.error("Error fetching statistics", { error: err.message });
+    res.status(500).json({ error: "Terjadi kesalahan pada server." });
+  }
 });
 
-/** GET /api/dashboard/history — riwayat scan (audit log) terbaru. */
-dashboardRouter.get("/history", requireAdminKey, async (req, res) => {
-  const limit = Math.min(Number(req.query.limit) || 50, 500);
-  const logs = await listAuditLogs(limit);
-  res.json({ logs });
+dashboardRouter.get("/history", requireAdminAuth, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 50, 500);
+    const logs = listAuditLogs(limit);
+    res.json({ logs });
+  } catch (err) {
+    logger.error("Error fetching audit logs", { error: err.message });
+    res.status(500).json({ error: "Terjadi kesalahan pada server." });
+  }
 });

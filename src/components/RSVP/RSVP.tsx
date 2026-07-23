@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FiCheck, FiUser, FiPhone, FiUsers, FiMessageSquare } from "react-icons/fi";
 import type { RSVPFormValues } from "@/types";
 import { useToast } from "@/hooks/useToast";
+import { submitRsvp, ApiError } from "@/services/api";
 
 export default function RSVP() {
   const {
@@ -18,13 +19,23 @@ export default function RSVP() {
   const { showToast } = useToast();
 
   const onSubmit = async (data: RSVPFormValues) => {
-    // Simulasi pengiriman data ke server / Google Sheets / backend pilihan Anda.
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    console.log("RSVP submitted:", data);
-    setSubmitted(true);
-    showToast("Terima kasih, konfirmasi kehadiran Anda telah kami terima.");
-    reset();
-    setTimeout(() => setSubmitted(false), 4000);
+    try {
+      await submitRsvp({
+        name: data.name,
+        phone: data.phone,
+        guests: data.guests,
+        attendance: data.attendance,
+        message: data.message || undefined,
+      });
+      setSubmitted(true);
+      showToast("Terima kasih, konfirmasi kehadiran Anda telah kami terima.");
+      reset();
+      setTimeout(() => setSubmitted(false), 4000);
+    } catch (err) {
+      const msg =
+        err instanceof ApiError ? err.message : "Gagal mengirim konfirmasi. Coba lagi nanti.";
+      showToast(msg);
+    }
   };
 
   return (
