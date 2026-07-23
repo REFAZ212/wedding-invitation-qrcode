@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+body {
+  overflow-x: hidden;
+}
+
+/* Visible focus ring for keyboard navigation (a11y) */
+:focus-visible {
+  outline: 2px solid #c9a24b;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Custom slim scrollbar for scrollable wish list */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: rgba(201, 162, 75, 0.4);
+  border-radius: 999px;
+}
+
+/* Swiper pagination bullet color override for "Our Moments" slider */
+.our-moments-swiper .swiper-pagination-bullet {
+  background: #c9a24b;
+  opacity: 0.35;
+}
+.our-moments-swiper .swiper-pagination-bullet-active {
+  opacity: 1;
+}
+
+/* Smooth section anchor offset (accounts for mobile bottom nav / desktop top nav) */
+section[id] {
+  scroll-margin-top: 84px;
+}
